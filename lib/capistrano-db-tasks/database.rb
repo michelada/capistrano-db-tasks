@@ -103,12 +103,13 @@ module Database
   end
 
   class Remote < Base
-    def initialize(cap_instance)
+    def initialize(cap_instance, secondbase = false)
       super(cap_instance)
       puts "Loading remote database config"
       @cap.within @cap.current_path do
         @cap.with rails_env: @cap.fetch(:rails_env) do
-          dirty_config_content = @cap.capture(:rails, "runner \"puts '#{DBCONFIG_BEGIN_FLAG}' + ActiveRecord::Base.connection.instance_variable_get(:@config).to_yaml + '#{DBCONFIG_END_FLAG}'\"", '2>/dev/null')
+          active_record_class = (secondbase ? "SecondBase" : "ActiveRecord")
+          dirty_config_content = @cap.capture(:rails, "runner \"puts '#{DBCONFIG_BEGIN_FLAG}' + #{active_record_class}::Base.connection.instance_variable_get(:@config).to_yaml + '#{DBCONFIG_END_FLAG}'\"", '2>/dev/null')
           # Remove all warnings, errors and artefacts produced by bunlder, rails and other useful tools
           config_content = dirty_config_content.match(/#{DBCONFIG_BEGIN_FLAG}(.*?)#{DBCONFIG_END_FLAG}/m)[1]
           @config = YAML.load(config_content).each_with_object({}) { |(k, v), h| h[k.to_s] = v }
@@ -153,11 +154,12 @@ module Database
   end
 
   class Local < Base
-    def initialize(cap_instance)
+    def initialize(cap_instance, secondbase = false)
       super(cap_instance)
       puts "Loading local database config"
       dir_with_escaped_spaces = Dir.pwd.gsub ' ', '\ '
-      command = "#{dir_with_escaped_spaces}/bin/rails runner \"puts '#{DBCONFIG_BEGIN_FLAG}' + ActiveRecord::Base.connection.instance_variable_get(:@config).to_yaml + '#{DBCONFIG_END_FLAG}'\""
+      active_record_class = (secondbase ? "SecondBase" : "ActiveRecord")
+      command = "#{dir_with_escaped_spaces}/bin/rails runner \"puts '#{DBCONFIG_BEGIN_FLAG}' + #{active_record_class}::Base.connection.instance_variable_get(:@config).to_yaml + '#{DBCONFIG_END_FLAG}'\""
       stdout, status = Open3.capture2(command)
       raise "Error running command (status=#{status}): #{command}" if status != 0
 
@@ -215,9 +217,9 @@ module Database
         (remote_db.nil? || (remote_db && remote_db.postgresql?))
     end
 
-    def remote_to_local(instance)
-      local_db  = Database::Local.new(instance)
-      remote_db = Database::Remote.new(instance)
+    def remote_to_local(instance, secondbase = false)
+      local_db  = Database::Local.new(instance, secondbase)
+      remote_db = Database::Remote.new(instance, secondbase)
 
       check(local_db, remote_db)
 
@@ -229,9 +231,9 @@ module Database
       local_db.load(remote_db.output_file, instance.fetch(:db_local_clean))
     end
 
-    def local_to_remote(instance)
-      local_db  = Database::Local.new(instance)
-      remote_db = Database::Remote.new(instance)
+    def local_to_remote(instance, secondbase = false)
+      local_db  = Database::Local.new(instance, secondbase)
+      remote_db = Database::Remote.new(instance, secondbase)
 
       check(local_db, remote_db)
 

@@ -39,7 +39,8 @@ namespace :db do
       on roles(:db) do
         puts "Local database: #{Database::Local.new(self).database}"
         if fetch(:skip_data_sync_confirm) || Util.prompt('Are you sure you want to erase your local database with server database')
-          Database.remote_to_local(self)
+          Database.remote_to_local(self, false)
+          Database.remote_to_local(self, true)
         end
       end
     end
@@ -128,7 +129,8 @@ namespace :app do
       puts "Assets directories : #{fetch(:local_assets_dir)}"
       if fetch(:skip_data_sync_confirm) || Util.prompt("Are you sure you want to erase your local database AND your local assets with server database and assets(#{fetch(:assets_dir)})")
         on roles(:db) do
-          Database.remote_to_local(self)
+          Database.remote_to_local(self, false)
+          Database.remote_to_local(self, true)
         end
 
         on roles(:app) do
